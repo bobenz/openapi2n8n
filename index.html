@@ -591,29 +591,61 @@
                 return element;
             }
             
+            // Generate UUID v4
+            function generateUUID() {
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    const r = Math.random() * 16 | 0;
+                    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            }
+            
+            // Generate instance ID (for meta field)
+            function generateInstanceId() {
+                // Create a 64 character hex string
+                let result = '';
+                const hexChars = '0123456789abcdef';
+                for (let i = 0; i < 64; i++) {
+                    result += hexChars.charAt(Math.floor(Math.random() * hexChars.length));
+                }
+                return result;
+            }
+            
             // Generate n8n node configuration
             function generateN8nNodeConfig(spec, path, method, operation) {
                 const baseUrl = getBaseUrl(spec);
                 const operationId = operation.operationId || `${method}${path.replace(/\W/g, '')}`;
                 
+                // Generate random position values for better layout if importing multiple nodes
+                const posX = 100 + Math.floor(Math.random() * 400);
+                const posY = 100 + Math.floor(Math.random() * 400);
+                
                 // Basic node configuration
                 const nodeConfig = {
-                    parameters: {
-                        authentication: 'none',
-                        requestMethod: method.toUpperCase(),
-                        url: `${baseUrl}${path}`,
-                        options: {}
-                    },
-                    name: `HTTP Request (${operationId})`,
-                    type: 'n8n-nodes-base.httpRequest',
-                    typeVersion: 1,
-                    position: [0, 0]
+                    nodes: [{
+                        parameters: {
+                            authentication: 'none',
+                            requestMethod: method.toUpperCase(),
+                            url: `${baseUrl}${path}`,
+                            options: {}
+                        },
+                        id: generateUUID(),
+                        name: `HTTP Request (${operationId})`,
+                        type: 'n8n-nodes-base.httpRequest',
+                        typeVersion: 1,
+                        position: [posX, posY]
+                    }],
+                    connections: {},
+                    pinData: {},
+                    meta: {
+                        instanceId: generateInstanceId()
+                    }
                 };
                 
                 // Add query parameters
                 const queryParams = operation.parameters?.filter(p => p.in === 'query') || [];
                 if (queryParams.length > 0) {
-                    nodeConfig.parameters.options.queryParameters = {
+                    nodeConfig.nodes[0].parameters.options.queryParameters = {
                         parameters: queryParams.map(param => ({
                             name: param.name,
                             value: `={{ $json["${param.name}"] }}`
@@ -624,7 +656,7 @@
                 // Add headers
                 const headerParams = operation.parameters?.filter(p => p.in === 'header') || [];
                 if (headerParams.length > 0) {
-                    nodeConfig.parameters.options.headers = {
+                    nodeConfig.nodes[0].parameters.options.headers = {
                         parameters: headerParams.map(param => ({
                             name: param.name,
                             value: `={{ $json["${param.name}"] }}`
@@ -639,20 +671,20 @@
                         const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
                         
                         if (contentType.includes('json')) {
-                            nodeConfig.parameters.options.bodyContentType = 'json';
-                            nodeConfig.parameters.options.body = '={{ $json.body }}';
+                            nodeConfig.nodes[0].parameters.options.bodyContentType = 'json';
+                            nodeConfig.nodes[0].parameters.options.body = '={{ $json.body }}';
                         } else if (contentType.includes('form-urlencoded')) {
-                            nodeConfig.parameters.options.bodyContentType = 'form-urlencoded';
+                            nodeConfig.nodes[0].parameters.options.bodyContentType = 'form-urlencoded';
                         } else if (contentType.includes('form-data')) {
-                            nodeConfig.parameters.options.bodyContentType = 'multipart-form-data';
+                            nodeConfig.nodes[0].parameters.options.bodyContentType = 'multipart-form-data';
                         }
                     } 
                     // OpenAPI 2.x format with body parameter
                     else if (operation.parameters) {
                         const bodyParam = operation.parameters.find(p => p.in === 'body');
                         if (bodyParam) {
-                            nodeConfig.parameters.options.bodyContentType = 'json';
-                            nodeConfig.parameters.options.body = '={{ $json.body }}';
+                            nodeConfig.nodes[0].parameters.options.bodyContentType = 'json';
+                            nodeConfig.nodes[0].parameters.options.body = '={{ $json.body }}';
                         }
                     }
                 }
@@ -713,15 +745,15 @@
                 
                 switch (scheme.type?.toLowerCase()) {
                     case 'oauth2':
-                        nodeConfig.parameters.authentication = 'oAuth2';
+                        nodeConfig.nodes[0].parameters.authentication = 'oAuth2';
                         break;
                         
                     case 'http':
                         if (scheme.scheme === 'basic') {
-                            nodeConfig.parameters.authentication = 'basicAuth';
+                            nodeConfig.nodes[0].parameters.authentication = 'basicAuth';
                         } else if (scheme.scheme === 'bearer') {
-                            nodeConfig.parameters.authentication = 'headerAuth';
-                            nodeConfig.parameters.options.headerParameters = {
+                            nodeConfig.nodes[0].parameters.authentication = 'headerAuth';
+                            nodeConfig.nodes[0].parameters.options.headerParameters = {
                                 parameters: [{
                                     name: 'Authorization',
                                     value: '={{ "Bearer " + $json.token }}'
@@ -732,16 +764,16 @@
                         
                     case 'apikey':
                         if (scheme.in === 'header') {
-                            nodeConfig.parameters.authentication = 'headerAuth';
-                            nodeConfig.parameters.options.headerParameters = {
+                            nodeConfig.nodes[0].parameters.authentication = 'headerAuth';
+                            nodeConfig.nodes[0].parameters.options.headerParameters = {
                                 parameters: [{
                                     name: scheme.name,
                                     value: '={{ $json.apiKey }}'
                                 }]
                             };
                         } else if (scheme.in === 'query') {
-                            nodeConfig.parameters.authentication = 'queryAuth';
-                            nodeConfig.parameters.options.queryParameters = {
+                            nodeConfig.nodes[0].parameters.authentication = 'queryAuth';
+                            nodeConfig.nodes[0].parameters.options.queryParameters = {
                                 parameters: [{
                                     name: scheme.name,
                                     value: '={{ $json.apiKey }}'
