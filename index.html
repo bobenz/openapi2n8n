@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAPI to n8n Converter</title>
+    <style>
+        :root {
+            --n8n-color: #ff6d00;
+            --n8n-hover: #e56200;
+            --header-bg: #333;
+            --border-color: #ddd;
+            --success-color: #10a54a;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        header {
+            background-color: var(--header-bg);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo span {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        
+        .file-input {
+            background-color: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .file-input h2 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .input-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        input[type="text"], 
+        input[type="file"], 
+        textarea {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        textarea {
+            min-height: 150px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        
+        button {
+            background-color: var(--n8n-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        button:hover {
+            background-color: var(--n8n-hover);
+        }
+        
+        .api-display {
+            background-color: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: none; /* Hidden by default */
+        }
+        
+        .api-info {
+            margin-bottom: 2rem;
+        }
+        
+        .api-info h2 {
+            margin-bottom: 0.5rem;
+        }
+        
+        .api-version {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .endpoints {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .endpoint-group {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .group-name {
+            background-color: #f5f5f5;
+            padding: 0.75rem 1rem;
+            font-weight: bold;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .endpoint {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .endpoint:last-child {
+            border-bottom: none;
+        }
+        
+        .method-path {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+        
+        .http-method {
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .get { background-color: #e7f0f7; color: #0f6ab4; }
+        .post { background-color: #e7f6ec; color: #10a54a; }
+        .put { background-color: #f7e7f3; color: #9b708b; }
+        .delete { background-color: #f5e8e8; color: #a41e22; }
+        .patch { background-color: #faf5ee; color: #d38042; }
+        .options { background-color: #f2f2f2; color: #555; }
+        .head { background-color: #f2f2f2; color: #555; }
+        
+        .path {
+            font-family: monospace;
+            font-size: 1rem;
+        }
+        
+        .endpoint-info {
+            flex-basis: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .endpoint-description {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .params-list {
+            font-size: 0.85rem;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .n8n-button svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--success-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .endpoint {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .method-path {
+                margin-bottom: 0.5rem;
+            }
+        }
+        
+        /* Search feature */
+        .search-container {
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            color: #666;
+        }
+        
+        .no-results {
+            padding: 1rem;
+            text-align: center;
+            color: #666;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="#FF6D00"/>
+                <path d="M2 17L12 22L22 17" fill="#FF6D00"/>
+                <path d="M2 12L12 17L22 12" fill="#FF6D00"/>
+            </svg>
+            <span>OpenAPI to n8n Converter</span>
+        </div>
+    </header>
+    
+    <div class="container">
+        <section class="file-input">
+            <h2>Load OpenAPI Specification</h2>
+            <div class="input-methods">
+                <div class="input-group">
+                    <label for="url-input">Enter OpenAPI URL:</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="url-input" placeholder="https://example.com/openapi.json">
+                        <button id="load-url">Load</button>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="file-input">Upload OpenAPI file:</label>
+                    <input type="file" id="file-input" accept=".json,.yaml,.yml">
+                </div>
+                
+                <div class="input-group">
+                    <label for="paste-input">Or paste OpenAPI JSON/YAML:</label>
+                    <textarea id="paste-input" placeholder='{"openapi": "3.0.0", ...}'></textarea>
+                    <button id="load-paste">Load</button>
+                </div>
+            </div>
+        </section>
+        
+        <section class="api-display" id="api-display">
+            <div class="api-info">
+                <h2 id="api-title">API Title</h2>
+                <div class="api-version" id="api-version">Version: 1.0.0</div>
+                <p id="api-description">API description goes here.</p>
+            </div>
+            
+            <div class="search-container">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <input type="text" id="search-input" class="search-input" placeholder="Search endpoints...">
+            </div>
+            
+            <div class="endpoints" id="endpoints-container">
+                <!-- Endpoints will be inserted here by JavaScript -->
+            </div>
+            
+            <div class="no-results" id="no-results">
+                No endpoints match your search criteria
+            </div>
+        </section>
+    </div>
+    
+    <div class="toast" id="toast">Copied to clipboard!</div>
+    
+    <script>
+        // Main application logic
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM elements
+            const urlInput = document.getElementById('url-input');
+            const fileInput = document.getElementById('file-input');
+            const pasteInput = document.getElementById('paste-input');
+            const loadUrlBtn = document.getElementById('load-url');
+            const loadPasteBtn = document.getElementById('load-paste');
+            const apiDisplay = document.getElementById('api-display');
+            const apiTitle = document.getElementById('api-title');
+            const apiVersion = document.getElementById('api-version');
+            const apiDescription = document.getElementById('api-description');
+            const endpointsContainer = document.getElementById('endpoints-container');
+            const searchInput = document.getElementById('search-input');
+            const noResults = document.getElementById('no-results');
+            const toast = document.getElementById('toast');
+            
+            // Current OpenAPI spec
+            let currentSpec = null;
+            
+            // Event listeners
+            loadUrlBtn.addEventListener('click', () => loadFromUrl(urlInput.value));
+            loadPasteBtn.addEventListener('click', () => parseAndDisplay(pasteInput.value));
+            fileInput.addEventListener('change', handleFileUpload);
+            searchInput.addEventListener('input', handleSearch);
+            
+            // Load from URL
+            async function loadFromUrl(url) {
+                if (!url) return;
+                
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    let data;
+                    
+                    if (contentType && contentType.includes('json')) {
+                        data = await response.json();
+                    } else {
+                        const text = await response.text();
+                        data = parseYamlOrJson(text);
+                    }
+                    
+                    displayOpenApi(data);
+                } catch (error) {
+                    alert(`Error loading OpenAPI specification: ${error.message}`);
+                }
+            }
+            
+            // Handle file upload
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const content = e.target.result;
+                        parseAndDisplay(content);
+                    } catch (error) {
+                        alert(`Error parsing file: ${error.message}`);
+                    }
+                };
+                reader.readAsText(file);
+            }
+            
+            // Parse and display OpenAPI content
+            function parseAndDisplay(content) {
+                if (!content) return;
+                
+                try {
+                    const data = parseYamlOrJson(content);
+                    displayOpenApi(data);
+                } catch (error) {
+                    alert(`Error parsing OpenAPI specification: ${error.message}`);
+                }
+            }
+            
+            // Parse YAML or JSON
+            function parseYamlOrJson(text) {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    // If JSON parsing fails, try YAML
+                    alert("YAML parsing is not implemented in this basic version. Please provide JSON.");
+                    throw new Error("YAML parsing not implemented");
+                }
+            }
+            
+            // Display OpenAPI specification
+            function displayOpenApi(spec) {
+                currentSpec = spec;
+                
+                // Set API information
+                apiTitle.textContent = spec.info?.title || 'API Documentation';
+                apiVersion.textContent = `Version: ${spec.info?.version || 'Unknown'}`;
+                apiDescription.textContent = spec.info?.description || 'No description available';
+                
+                // Group endpoints by tags
+                const endpointGroups = groupEndpointsByTag(spec);
+                
+                // Clear existing endpoints
+                endpointsContainer.innerHTML = '';
+                
+                // Add endpoint groups
+                for (const [tag, endpoints] of Object.entries(endpointGroups)) {
+                    const groupElement = document.createElement('div');
+                    groupElement.className = 'endpoint-group';
+                    
+                    const groupNameElement = document.createElement('div');
+                    groupNameElement.className = 'group-name';
+                    groupNameElement.textContent = tag;
+                    groupElement.appendChild(groupNameElement);
+                    
+                    // Add endpoints to the group
+                    endpoints.forEach(endpoint => {
+                        const endpointElement = createEndpointElement(endpoint);
+                        groupElement.appendChild(endpointElement);
+                    });
+                    
+                    endpointsContainer.appendChild(groupElement);
+                }
+                
+                // Show the API display
+                apiDisplay.style.display = 'block';
+                
+                // Clear search field
+                searchInput.value = '';
+                noResults.style.display = 'none';
+            }
+            
+            // Group endpoints by tag
+            function groupEndpointsByTag(spec) {
+                const groups = {};
+                const defaultTag = 'General';
+                const paths = spec.paths || {};
+                
+                for (const [path, methods] of Object.entries(paths)) {
+                    for (const [method, operation] of Object.entries(methods)) {
+                        // Skip non-HTTP method properties
+                        if (!['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method.toLowerCase())) {
+                            continue;
+                        }
+                        
+                        const tags = operation.tags && operation.tags.length > 0 
+                            ? operation.tags 
+                            : [defaultTag];
+                        
+                        tags.forEach(tag => {
+                            if (!groups[tag]) {
+                                groups[tag] = [];
+                            }
+                            
+                            groups[tag].push({
+                                path,
+                                method,
+                                operation
+                            });
+                        });
+                    }
+                }
+                
+                return groups;
+            }
+            
+            // Create endpoint element
+            function createEndpointElement(endpoint) {
+                const { path, method, operation } = endpoint;
+                
+                const element = document.createElement('div');
+                element.className = 'endpoint';
+                element.dataset.path = path;
+                element.dataset.method = method;
+                element.dataset.summary = operation.summary || '';
+                element.dataset.description = operation.description || '';
+                
+                // Method and path
+                const methodPathElement = document.createElement('div');
+                methodPathElement.className = 'method-path';
+                
+                const methodElement = document.createElement('div');
+                methodElement.className = `http-method ${method.toLowerCase()}`;
+                methodElement.textContent = method.toUpperCase();
+                methodPathElement.appendChild(methodElement);
+                
+                const pathElement = document.createElement('div');
+                pathElement.className = 'path';
+                pathElement.textContent = path;
+                methodPathElement.appendChild(pathElement);
+                
+                element.appendChild(methodPathElement);
+                
+                // n8n button
+                const n8nButton = document.createElement('button');
+                n8nButton.className = 'n8n-button';
+                n8nButton.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" 
+                              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    n8n
+                `;
+                
+                // Generate and set n8n node configuration
+                const n8nConfig = generateN8nNodeConfig(currentSpec, path, method, operation);
+                n8nButton.addEventListener('click', () => {
+                    copyToClipboard(JSON.stringify(n8nConfig, null, 2));
+                    showToast();
+                });
+                
+                element.appendChild(n8nButton);
+                
+                // Endpoint info
+                const infoElement = document.createElement('div');
+                infoElement.className = 'endpoint-info';
+                
+                if (operation.summary || operation.description) {
+                    const descriptionElement = document.createElement('div');
+                    descriptionElement.className = 'endpoint-description';
+                    descriptionElement.textContent = operation.summary || operation.description;
+                    infoElement.appendChild(descriptionElement);
+                }
+                
+                // Parameters (path, query, etc.)
+                if (operation.parameters && operation.parameters.length > 0) {
+                    const paramsElement = document.createElement('div');
+                    paramsElement.className = 'params-list';
+                    
+                    const pathParams = operation.parameters.filter(p => p.in === 'path');
+                    if (pathParams.length > 0) {
+                        paramsElement.innerHTML += `<strong>Path params:</strong> ${pathParams.map(p => p.name).join(', ')}<br>`;
+                    }
+                    
+                    const queryParams = operation.parameters.filter(p => p.in === 'query');
+                    if (queryParams.length > 0) {
+                        paramsElement.innerHTML += `<strong>Query params:</strong> ${queryParams.map(p => p.name).join(', ')}`;
+                    }
+                    
+                    infoElement.appendChild(paramsElement);
+                }
+                
+                element.appendChild(infoElement);
+                
+                return element;
+            }
+            
+            // Generate n8n node configuration
+            function generateN8nNodeConfig(spec, path, method, operation) {
+                const baseUrl = getBaseUrl(spec);
+                const operationId = operation.operationId || `${method}${path.replace(/\W/g, '')}`;
+                
+                // Basic node configuration
+                const nodeConfig = {
+                    parameters: {
+                        authentication: 'none',
+                        requestMethod: method.toUpperCase(),
+                        url: `${baseUrl}${path}`,
+                        options: {}
+                    },
+                    name: `HTTP Request (${operationId})`,
+                    type: 'n8n-nodes-base.httpRequest',
+                    typeVersion: 1,
+                    position: [0, 0]
+                };
+                
+                // Add query parameters
+                const queryParams = operation.parameters?.filter(p => p.in === 'query') || [];
+                if (queryParams.length > 0) {
+                    nodeConfig.parameters.options.queryParameters = {
+                        parameters: queryParams.map(param => ({
+                            name: param.name,
+                            value: `={{ $json["${param.name}"] }}`
+                        }))
+                    };
+                }
+                
+                // Add headers
+                const headerParams = operation.parameters?.filter(p => p.in === 'header') || [];
+                if (headerParams.length > 0) {
+                    nodeConfig.parameters.options.headers = {
+                        parameters: headerParams.map(param => ({
+                            name: param.name,
+                            value: `={{ $json["${param.name}"] }}`
+                        }))
+                    };
+                }
+                
+                // Add request body if applicable
+                if (['post', 'put', 'patch'].includes(method.toLowerCase())) {
+                    // OpenAPI 3.x format with requestBody
+                    if (operation.requestBody) {
+                        const contentType = Object.keys(operation.requestBody.content || {})[0] || 'application/json';
+                        
+                        if (contentType.includes('json')) {
+                            nodeConfig.parameters.options.bodyContentType = 'json';
+                            nodeConfig.parameters.options.body = '={{ $json.body }}';
+                        } else if (contentType.includes('form-urlencoded')) {
+                            nodeConfig.parameters.options.bodyContentType = 'form-urlencoded';
+                        } else if (contentType.includes('form-data')) {
+                            nodeConfig.parameters.options.bodyContentType = 'multipart-form-data';
+                        }
+                    } 
+                    // OpenAPI 2.x format with body parameter
+                    else if (operation.parameters) {
+                        const bodyParam = operation.parameters.find(p => p.in === 'body');
+                        if (bodyParam) {
+                            nodeConfig.parameters.options.bodyContentType = 'json';
+                            nodeConfig.parameters.options.body = '={{ $json.body }}';
+                        }
+                    }
+                }
+                
+                // Configure authentication
+                configureAuthentication(nodeConfig, spec, operation);
+                
+                return nodeConfig;
+            }
+            
+            // Get base URL from OpenAPI spec
+            function getBaseUrl(spec) {
+                // OpenAPI 3.x format
+                if (spec.servers && spec.servers.length > 0) {
+                    let url = spec.servers[0].url;
+                    // Remove trailing slash
+                    return url.endsWith('/') ? url.slice(0, -1) : url;
+                }
+                
+                // OpenAPI 2.x (Swagger) format
+                if (spec.host) {
+                    const scheme = (spec.schemes && spec.schemes[0]) || 'https';
+                    const basePath = spec.basePath || '';
+                    return `${scheme}://${spec.host}${basePath}`;
+                }
+                
+                return '';
+            }
+            
+            // Configure authentication for the n8n node
+            function configureAuthentication(nodeConfig, spec, operation) {
+                // No security defined
+                if (!operation.security || operation.security.length === 0) {
+                    return;
+                }
+                
+                // Get security schemes
+                let securitySchemes = {};
+                
+                // OpenAPI 3.x
+                if (spec.components && spec.components.securitySchemes) {
+                    securitySchemes = spec.components.securitySchemes;
+                } 
+                // OpenAPI 2.x (Swagger)
+                else if (spec.securityDefinitions) {
+                    securitySchemes = spec.securityDefinitions;
+                }
+                
+                // Check the first security requirement
+                const firstSecurity = operation.security[0];
+                const securityName = Object.keys(firstSecurity)[0];
+                
+                if (!securityName || !securitySchemes[securityName]) {
+                    return;
+                }
+                
+                const scheme = securitySchemes[securityName];
+                
+                switch (scheme.type?.toLowerCase()) {
+                    case 'oauth2':
+                        nodeConfig.parameters.authentication = 'oAuth2';
+                        break;
+                        
+                    case 'http':
+                        if (scheme.scheme === 'basic') {
+                            nodeConfig.parameters.authentication = 'basicAuth';
+                        } else if (scheme.scheme === 'bearer') {
+                            nodeConfig.parameters.authentication = 'headerAuth';
+                            nodeConfig.parameters.options.headerParameters = {
+                                parameters: [{
+                                    name: 'Authorization',
+                                    value: '={{ "Bearer " + $json.token }}'
+                                }]
+                            };
+                        }
+                        break;
+                        
+                    case 'apikey':
+                        if (scheme.in === 'header') {
+                            nodeConfig.parameters.authentication = 'headerAuth';
+                            nodeConfig.parameters.options.headerParameters = {
+                                parameters: [{
+                                    name: scheme.name,
+                                    value: '={{ $json.apiKey }}'
+                                }]
+                            };
+                        } else if (scheme.in === 'query') {
+                            nodeConfig.parameters.authentication = 'queryAuth';
+                            nodeConfig.parameters.options.queryParameters = {
+                                parameters: [{
+                                    name: scheme.name,
+                                    value: '={{ $json.apiKey }}'
+                                }]
+                            };
+                        }
+                        break;
+                }
+            }
+            
+            // Copy text to clipboard
+            function copyToClipboard(text) {
+                navigator.clipboard.writeText(text)
+                    .catch(err => {
+                        console.error('Failed to copy to clipboard:', err);
+                        alert('Failed to copy to clipboard. Please check console for details.');
+                    });
+            }
+            
+            // Show toast notification
+            function showToast() {
+                toast.style.display = 'block';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 2000);
+            }
+            
+            // Handle search
+            function handleSearch() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const endpointElements = document.querySelectorAll('.endpoint');
+                let visibleCount = 0;
+                
+                endpointElements.forEach(element => {
+                    const path = element.dataset.path.toLowerCase();
+                    const method = element.dataset.method.toLowerCase();
+                    const summary = element.dataset.summary.toLowerCase();
+                    const description = element.dataset.description.toLowerCase();
+                    
+                    const isMatch = path.includes(searchTerm) || 
+                                  method.includes(searchTerm) || 
+                                  summary.includes(searchTerm) || 
+                                  description.includes(searchTerm);
+                    
+                    if (isMatch) {
+                        element.style.display = 'flex';
+                        visibleCount++;
+                    } else {
+                        element.style.display = 'none';
+                    }
+                });
+                
+                // Show groups only if they have visible endpoints
+                document.querySelectorAll('.endpoint-group').forEach(group => {
+                    const hasVisibleEndpoints = Array.from(group.querySelectorAll('.endpoint'))
+                        .some(endpoint => endpoint.style.display !== 'none');
+                    
+                    group.style.display = hasVisibleEndpoints ? 'block' : 'none';
+                });
+                
+                // Show/hide "no results" message
+                noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
+            
+            // Load example data for demonstration (optional)
+            const demoUrl = urlInput.value;
+            if (demoUrl) {
+                loadFromUrl(demoUrl);
+            }
+        });
+    </script>
+</body>
+</html>
